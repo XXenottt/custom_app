@@ -376,6 +376,18 @@ fn generate_boe(
 
 // ── Fiton generation ─────────────────────────────────────────────────────────
 
+/// Convert a Fiton field code (e.g. "A", "AD", "BO") to a 0-indexed Excel column number.
+fn field_col(code: &str) -> u16 {
+    let bytes = code.as_bytes();
+    if bytes.len() == 1 {
+        (bytes[0] - b'A') as u16
+    } else {
+        let hi = (bytes[0] - b'A' + 1) as u16;
+        let lo = (bytes[1] - b'A') as u16;
+        hi * 26 + lo
+    }
+}
+
 fn generate_fiton(
     lines: &[InvoiceLine],
     output_path: &Path,
@@ -395,36 +407,39 @@ fn generate_fiton(
         .set_border(FormatBorder::Thin);
     let num2 = Format::new().set_num_format("0.00");
 
-    // Column headers (field codes from Fiton requirement)
-    let headers: &[(&str, bool)] = &[
-        ("A",  true),  // Artikelnummer
-        ("C",  true),  // Goederencode (HS code)
-        ("F",  true),  // Goederenomschrijving
-        ("G",  true),  // Verpakking
-        ("H",  true),  // Aantal colli
-        ("I",  true),  // Merken en nummers
-        ("J",  true),  // Bruto massa
-        ("K",  true),  // Netto massa
-        ("L",  true),  // Aanvullende eenheden
-        ("M",  false), // Gevraagde regeling
-        ("N",  false), // Voorafgaande regeling
-        ("P",  false), // Communautaire preferentie
-        ("Q",  true),  // Land van oorsprong
-        ("T",  false), // Waarderingsmethode
-        ("U",  false), // Waarderingsindicator
-        ("AD", true),  // Prijs van de goederen
-        ("AE", true),  // Valuta prijs
-        ("AH", false), // Valuta kosten
-        ("BO", false), // Aanvullende informatie
-        ("BP", false), // Beschrijving aanvullende informatie
-        ("BQ", false), // Aanvullende referentie
-        ("CA", true),  // Bewijsstuk
-        ("CB", true),  // Nummer bewijsstuk
+    // Field definitions: (code, description, auto-filled?)
+    // auto=true → red header; auto=false → yellow header
+    let fields: &[(&str, &str, bool)] = &[
+        ("A",  "Artikelnummer",                        true),
+        ("C",  "Goederencode",                         true),
+        ("F",  "Goederenomschrijving",                 true),
+        ("G",  "Verpakking",                           true),
+        ("H",  "Aantal colli",                         true),
+        ("I",  "Merken en nummers",                    true),
+        ("J",  "Bruto massa (kg)",                     true),
+        ("K",  "Netto massa (kg)",                     true),
+        ("L",  "Aanvullende eenheden",                 true),
+        ("M",  "Gevraagde regeling",                   false),
+        ("N",  "Voorafgaande regeling",                false),
+        ("P",  "Communautaire preferentie",            false),
+        ("Q",  "Land van oorsprong",                   true),
+        ("T",  "Waarderingsmethode",                   false),
+        ("U",  "Waarderingsindicator",                 false),
+        ("AD", "Prijs van de goederen",                true),
+        ("AE", "Valuta (prijs)",                       true),
+        ("AH", "Valuta (kosten)",                      false),
+        ("BO", "Aanvullende informatie",               false),
+        ("BP", "Beschrijving aanvullende informatie",  false),
+        ("BQ", "Aanvullende referentie",               false),
+        ("CA", "Bewijsstuk",                           true),
+        ("CB", "Nummer bewijsstuk",                    true),
     ];
 
-    for (c, (name, is_auto)) in headers.iter().enumerate() {
-        let fmt = if *is_auto { &red_hdr } else { &hdr };
-        ws.write_with_format(0, c as u16, *name, fmt)?;
+    // Row 0: field descriptions as headers in the correct Excel columns
+    for (code, desc, auto) in fields {
+        let col = field_col(code);
+        let fmt = if *auto { &red_hdr } else { &hdr };
+        ws.write_with_format(0, col, *desc, fmt)?;
     }
 
     // Group lines by HS code
@@ -449,63 +464,38 @@ fn generate_fiton(
         let total_cases: u32 = group.iter().map(|l| l.cases).sum();
         let description = group.first().map(|l| l.description.as_str()).unwrap_or("");
         let coo = group.first().map(|l| l.country_of_origin.as_str()).unwrap_or("CN");
-        // Collect unique invoice numbers
         let mut inv_nos: Vec<String> = group.iter().map(|l| l.invoice_no.clone()).collect();
         inv_nos.dedup();
         let inv_str = inv_nos.join("; ");
+        let coo_code = if coo.to_lowercase().contains("china") { "CN" } else { coo };
 
-        // A: seq number
-        ws.write(r, 0, (seq + 1) as u32)?;
-        // C: HS code
-        ws.write(r, 1, hs.as_str())?;
-        // F: description
-        ws.write(r, 2, description)?;
-        // G: packaging type
-        ws.write(r, 3, "CT")?;
-        // H: number of cartons
-        ws.write(r, 4, total_cases)?;
-        // I: marks and numbers (invoice nos)
-        ws.write(r, 5, inv_str.as_str())?;
-        // J: gross weight
-        ws.write_with_format(r, 6, total_gw, &num2)?;
-        // K: net weight
-        ws.write_with_format(r, 7, total_nw, &num2)?;
-        // L: supplementary units (qty)
-        ws.write(r, 8, total_qty)?;
-        // M: Gevraagde regeling
-        ws.write(r, 9, "40")?;
-        // N: Voorafgaande regeling
-        ws.write(r, 10, "71")?;
-        // P: Communautaire preferentie
-        ws.write(r, 11, "100")?;
-        // Q: country of origin
-        ws.write(r, 12, if coo.to_lowercase().contains("china") { "CN" } else { coo })?;
-        // T: Waarderingsmethode
-        ws.write(r, 13, "1")?;
-        // U: Waarderingsindicator
-        ws.write(r, 14, "0000")?;
-        // AD: price
-        ws.write_with_format(r, 15, total_amount, &num2)?;
-        // AE: currency
-        ws.write(r, 16, currency)?;
-        // AH: blank (no cost currency specified)
-        ws.write(r, 17, "")?;
-        // BO, BP: blank (Extron-specific, not applicable here)
-        ws.write(r, 18, "")?;
-        ws.write(r, 19, "")?;
-        // BQ: blank (manual input, customs-specific)
-        ws.write(r, 20, "")?;
-        // CA: document type
-        ws.write(r, 21, "N935")?;
-        // CB: invoice number
-        ws.write(r, 22, inv_str.as_str())?;
+        ws.write(r, field_col("A"), (seq + 1) as u32)?;
+        ws.write(r, field_col("C"), hs.as_str())?;
+        ws.write(r, field_col("F"), description)?;
+        ws.write(r, field_col("G"), "CS")?;
+        ws.write(r, field_col("H"), total_cases)?;
+        ws.write(r, field_col("I"), inv_str.as_str())?;
+        ws.write_with_format(r, field_col("J"), total_gw, &num2)?;
+        ws.write_with_format(r, field_col("K"), total_nw, &num2)?;
+        ws.write(r, field_col("L"), total_qty)?;
+        ws.write(r, field_col("M"), "40")?;
+        ws.write(r, field_col("N"), "71")?;
+        ws.write(r, field_col("P"), "100")?;
+        ws.write(r, field_col("Q"), coo_code)?;
+        ws.write(r, field_col("T"), "1")?;
+        ws.write(r, field_col("U"), "0000")?;
+        ws.write_with_format(r, field_col("AD"), total_amount, &num2)?;
+        ws.write(r, field_col("AE"), currency)?;
+        // AH, BO, BP, BQ: blank
+        ws.write(r, field_col("CA"), "N935")?;
+        ws.write(r, field_col("CB"), inv_str.as_str())?;
     }
 
-    // Column widths
-    ws.set_column_width(1, 14)?;
-    ws.set_column_width(2, 35)?;
-    ws.set_column_width(5, 25)?;
-    ws.set_column_width(22, 25)?;
+    // Column widths for key columns
+    ws.set_column_width(field_col("C"), 14)?;
+    ws.set_column_width(field_col("F"), 35)?;
+    ws.set_column_width(field_col("I"), 25)?;
+    ws.set_column_width(field_col("CB"), 25)?;
 
     wb.save(output_path)?;
     Ok(())
