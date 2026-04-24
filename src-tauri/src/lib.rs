@@ -91,7 +91,11 @@ fn cell_f64(range: &calamine::Range<Data>, row: u32, col: u32) -> f64 {
 }
 
 fn is_numeric_cell(v: Option<&Data>) -> bool {
-    matches!(v, Some(Data::Float(_)) | Some(Data::Int(_)))
+    match v {
+        Some(Data::Float(_)) | Some(Data::Int(_)) => true,
+        Some(Data::String(s)) => s.trim().parse::<f64>().is_ok(),
+        _ => false,
+    }
 }
 
 // ── Invoice parsing ──────────────────────────────────────────────────────────
