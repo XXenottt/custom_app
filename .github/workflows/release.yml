@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号（如 v1.0.0）'
+        required: true
+        default: 'v1.0.0'
 
 jobs:
   build-windows:
@@ -33,8 +39,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: ${{ github.ref_name }}
+          tagName: ${{ github.ref_name != 'main' && github.ref_name || inputs.version }}
+          releaseName: ${{ github.ref_name != 'main' && github.ref_name || inputs.version }}
           releaseBody: |
             ## 安装说明
             - 下载 `.msi` 文件双击安装（推荐）
