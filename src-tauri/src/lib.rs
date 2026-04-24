@@ -472,23 +472,28 @@ fn generate_fiton(
         ws.write_with_format(r, 7, total_nw, &num2)?;
         // L: supplementary units (qty)
         ws.write(r, 8, total_qty)?;
-        // M, N, P: blank
-        ws.write(r, 9, "")?;
-        ws.write(r, 10, "")?;
-        ws.write(r, 11, "")?;
+        // M: Gevraagde regeling
+        ws.write(r, 9, "40")?;
+        // N: Voorafgaande regeling
+        ws.write(r, 10, "71")?;
+        // P: Communautaire preferentie
+        ws.write(r, 11, "100")?;
         // Q: country of origin
         ws.write(r, 12, if coo.to_lowercase().contains("china") { "CN" } else { coo })?;
-        // T, U: blank
-        ws.write(r, 13, "")?;
-        ws.write(r, 14, "")?;
+        // T: Waarderingsmethode
+        ws.write(r, 13, "1")?;
+        // U: Waarderingsindicator
+        ws.write(r, 14, "0000")?;
         // AD: price
         ws.write_with_format(r, 15, total_amount, &num2)?;
         // AE: currency
         ws.write(r, 16, currency)?;
-        // AH, BO, BP, BQ: blank
+        // AH: blank (no cost currency specified)
         ws.write(r, 17, "")?;
+        // BO, BP: blank (Extron-specific, not applicable here)
         ws.write(r, 18, "")?;
         ws.write(r, 19, "")?;
+        // BQ: blank (manual input, customs-specific)
         ws.write(r, 20, "")?;
         // CA: document type
         ws.write(r, 21, "N935")?;
