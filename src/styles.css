@@ -87,7 +87,8 @@ body {
   padding: 24px 20px 28px;
 }
 
-.processor-grid {
+.processor-grid,
+.form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
@@ -184,6 +185,18 @@ body {
   font-size: 13px;
 }
 
+.path {
+  font-family: monospace;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.warn {
+  color: #b45309;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 @media (max-width: 680px) {
   #app {
     padding: 10px;
@@ -203,7 +216,8 @@ body {
     min-width: 92px;
   }
 
-  .processor-grid {
+  .processor-grid,
+  .form-grid {
     grid-template-columns: 1fr;
   }
 
